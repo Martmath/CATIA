@@ -1,0 +1,1306 @@
+﻿======
+Inst
+======
+Dim result
+Dim params(0)
+params(0)=PartNum
+result = CATIA.SystemService.ExecuteScript("C:\example\Action.catvba",catScriptLibraryTypeVBAProject, "Action", "CATMain",params)
+End Sub
+======
+Chg
+======
+Dim result
+Dim params(0)
+params(0)=PartNum
+result = CATIA.SystemService.ExecuteScript("C:\example\Action.catvba",catScriptLibraryTypeVBAProject, "Action", "Main",params)
+End Sub
+======
+Instantiation
+======
+let PN (String)
+PN=`Chain\Part Number` 
+`Relations\VB Scripts.1\Inst` .Run(PN)
+Relations\Instantiation\Activity= false
+======
+Update
+======
+let PN (String)
+PN=`Chain\Part Number` 
+`Relations\VB Scripts.1\Chg` .Run(PN)
+======
+ChangeData
+======
+let PN (String)
+PN=`Chain\Part Number` 
+`Relations\VB Scripts.1\Chg` .Run(PN)
+=====================================================================================================================================
+======
+H
+======
+Private Sub Timer_Timer()
+On Error Resume Next
+Err.Clear
+Part.Update
+If Err.Number = 0 Then
+PostMain
+Me.Timer.Enabled = ValFalse
+End If
+End Sub
+
+======
+Action
+======
+
+Public PartDocument As PartDocument
+Public MainSelection 'As Selection
+Public Selection 'As Selection
+Public Part As Part
+Public Parameters As Parameters
+
+Public HybridBodies As HybridBodies
+Public HBB As HybridBody
+Public HBE As HybridBody
+Public HSF As HybridShapeFactory
+Public Spline 'As HybridShapeSpline
+Public SplineRef As Reference
+Public BPRef As Reference
+Public EPRef As Reference
+
+Public LineARef As Reference
+Public PlaneARef As Reference
+Public MySplineRef As Reference
+
+Public Spabench As Variant
+Public MyMeas As Variant
+
+Public l As Double
+Public w As Double
+Public R As Double
+Public LB As Double
+Public WB As Double
+Public cr As Double
+Public Cr45 As Double
+Public L45 As Double
+Public L90 As Double
+Public L135 As Double
+Public L180 As Double
+Public CDB As Double
+Public CHK As Double
+Public Big As Double
+Public Small As Double
+Public Alfa As Double
+Public Betta As Double
+Public MaxL As Double
+Public PI As Double
+Public CoefPI As Double
+Public Coeff4() As Double
+Public MyX() As Double
+Public PrtN As String
+Public VT As Byte
+Public Split1Ref As Reference
+Public Split2ref As Reference
+Public DirHand As Boolean
+Public DirSpline As Boolean
+Public NotDirSpline As Boolean
+Public BinB As Boolean
+Public BinE As Boolean
+
+Sub Main(PartNumber As String)
+    PrtN = PartNumber
+    Set MainSelection = CATIA.ActiveDocument.Selection
+    MainSelection.Clear
+    MainSelection.Search "CATPrtSearch.PartFeature.NameInGraph=" + PartNumber + ",all"
+    Set Part = MainSelection.Item(1).Value
+    Set Parameters = Part.Parameters
+    Set PartDocument = Part.Parent
+    Set Selection = PartDocument.Selection
+    Set HSF = Part.HybridShapeFactory
+    Set HybridBodies = Part.HybridBodies
+    Set HBB = HybridBodies.Item("Begin")
+    Set HBE = HybridBodies.Item("MySet")
+    VT = 2
+    H.Timer.Enabled = ValTrue
+End Sub
+
+Sub CATMain(PartNumber As String)
+    PrtN = PartNumber
+    Set MainSelection = CATIA.ActiveDocument.Selection
+    MainSelection.Clear
+    MainSelection.Search "CATPrtSearch.PartFeature.NameInGraph=" + PartNumber + ",all"
+    Set Part = MainSelection.Item(1).Value
+    Set Parameters = Part.Parameters
+    Set PartDocument = Part.Parent
+    Set Selection = PartDocument.Selection
+    Set HSF = Part.HybridShapeFactory
+    Set HybridBodies = Part.HybridBodies
+    Set HBB = HybridBodies.Item("Begin")
+    Set HBE = HybridBodies.Add()
+    HBE.Name = "MySet"
+    VT = 1
+    H.Timer.Enabled = ValTrue
+End Sub
+Public Sub PostMain()
+    
+    PI = 4 * Atn(1)
+    CoefPI = PI / 180
+    Dim I As Integer
+    Dim Icurve As Boolean
+    Dim IpointB As Boolean
+    Dim IpointE As Boolean
+    If VT = 2 Then
+        MainSelection.Clear
+        Call MainSelection.Add(HBE)
+        MainSelection.Delete
+        Set HBE = HybridBodies.Add()
+        HBE.Name = "MySet"
+        Icurve = Parameters.Item("ISpline").Value
+        IpointB = Parameters.Item("IBeg").Value
+        IpointE = Parameters.Item("IEnd").Value
+        'MsgBox CStr(Icurve) + "  " + CStr(IpointB) + "  " + CStr(IpointE)
+    Else
+        Icurve = GoodData("Spline")
+        Parameters.Item("ISpline").Value = Icurve
+        IpointB = GoodData("BeginPoint")
+        Parameters.Item("IBeg").Value = IpointB
+        IpointE = GoodData("EndPoint")
+        Parameters.Item("IEnd").Value = IpointE
+        
+    End If
+    w = Parameters.Item("w").Value
+    l = Parameters.Item("l").Value
+    R = Parameters.Item("R").Value
+    LB = l + 2 * R
+    WB = w + 2 * R
+    cr = w / 2
+    CDB = cr + R
+    SizeBig = cr - R + l
+    SizeSmall = cr + R
+    Big = l - R
+    Small = 3 * R
+    Cr45 = cr / Sqr(2)
+    'MsgBox cr
+    L45 = Sqr(Cr45 * Cr45 + Big * Big + 2 * Big * cr) - Cr45
+    L90 = Sqr((cr + Big) * (cr + Big) - cr * cr)
+    L135 = Sqr((cr + Big) * (cr + Big) - Cr45 * Cr45) + Cr45
+    L180 = Big + cr
+    If (NT(Icurve)) And (NT(IpointB)) And (NT(IpointE)) Then
+        MsgBox ("Not set any parameters")
+        Exit Sub
+    End If
+    
+    Set Spabench = PartDocument.GetWorkbench("SPAWorkbench")
+    If IpointB Then Set BPRef = Part.CreateReferenceFromObject(Part.FindObjectByName("MoldBPoint")) Else Set BPRef = Part.CreateReferenceFromObject(Part.FindObjectByName("MoldBSpline"))
+    If IpointE Then Set EPRef = Part.CreateReferenceFromObject(Part.FindObjectByName("MoldEPoint")) Else Set EPRef = Part.CreateReferenceFromObject(Part.FindObjectByName("MoldESpline"))
+    Part.Update
+    If DisBetweenP(BPRef, EPRef) < LB Then
+        If MsgBox("Distance between the points(" + CStr(Round(DisBetweenP(BPRef, EPRef), 3)) + ") must be equal to the length of the at least one segment(" + CStr(LB) + ")! Do you want to continue?", vbOKCancel) = 2 Then Exit Sub
+    End If
+    Set Spline = HBB.HybridShapes.Item("SplineBoundary")
+    Set SplineRef = Part.CreateReferenceFromObject(Spline)
+    If Icurve And PinL(BPRef, SplineRef) And PinL(EPRef, SplineRef) Then
+        If Not (PinBeg(BPRef)) And Not (PinEnd(BPRef)) Then
+            DirSpline = True
+            Dim Split1 As HybridShapeSplit
+            Set Split1 = HSF.AddNewHybridSplit(SplineRef, BPRef, -1)
+            HSF.GSMVisibility SplineRef, 0
+            HBE.AppendHybridShape Split1
+            Part.Update
+            Set Split1Ref = Part.CreateReferenceFromObject(Split1)
+            Split1.Name = "Split1"
+            If Not (PinL(EPRef, Split1Ref)) Then
+                DirSpline = False
+                Call DelRef(Split1Ref)
+                Set Split1 = HSF.AddNewHybridSplit(SplineRef, BPRef, 1)
+                HSF.GSMVisibility SplineRef, 0
+                HBE.AppendHybridShape Split1
+                Part.Update
+                Set Split1Ref = Part.CreateReferenceFromObject(Split1)
+                Split1.Name = "Split1"
+            End If
+            
+        ElseIf PinEnd(BPRef) Then
+            DirSpline = False
+            Set Split1Ref = SplineRef
+        Else
+            DirSpline = True
+            Set Split1Ref = SplineRef
+        End If
+        If Not (PinBeg(EPRef)) And Not (PinEnd(EPRef)) Then
+            Dim Split2 As HybridShapeSplit
+            If DirSpline Then Set Split2 = HSF.AddNewHybridSplit(Split1Ref, EPRef, 1) Else Set Split2 = HSF.AddNewHybridSplit(Split1Ref, EPRef, -1)
+            HSF.GSMVisibility Split1Ref, 0
+            HBE.AppendHybridShape Split2
+            Part.Update
+            Set Split2ref = Part.CreateReferenceFromObject(Split2)
+            Split2.Name = "Split2"
+        Else
+            Set Split2ref = Split1Ref
+        End If
+    ElseIf Icurve Then
+        If Not (PinL(BPRef, SplineRef)) And Not (PinL(EPRef, SplineRef)) Then
+        MsgBox "Both points do not belong to the curve"
+        ElseIf Not (PinL(BPRef, SplineRef)) Then
+        MsgBox "Starting point belongs to the curve"
+        Else
+        MsgBox "Endpoint does not belong to the curve"
+        End If
+        Exit Sub
+    End If
+    Dim LineA As HybridShapeLineTangency
+    If NT(Icurve) Then
+        Set Spline = HBB.HybridShapes.Item("BegtoEnd")
+        Set Split2ref = Part.CreateReferenceFromObject(Spline)
+        DirSpline = True
+        NotDirSpline = False
+        Set LineA = HSF.AddNewLineTangency(Split2ref, EPRef, 0#, L180, NotDirSpline)
+        HBE.AppendHybridShape LineA
+        Part.Update
+        Set LineARef = Part.CreateReferenceFromObject(LineA)
+        LineA.Name = "LineA"
+        'If (LfurtherL(LineARef, Split2ref)) Then
+         'MsgBox "kkkk"
+         '   Exit Sub
+        'End If
+        If Not (LfurtherL(LineARef, Split2ref)) Then
+            Call DelRef(LineARef)
+            DirSpline = False
+            NotDirSpline = True
+            Set LineA = HSF.AddNewLineTangency(Split2ref, EPRef, 0#, L180, NotDirSpline)
+            HBE.AppendHybridShape LineA
+            Part.Update
+            Set LineARef = Part.CreateReferenceFromObject(LineA)
+            LineA.Name = "LineA"
+        End If
+    Else
+        NotDirSpline = Not (DirSpline)
+        Set LineA = HSF.AddNewLineTangency(Split2ref, EPRef, 0#, L180, NotDirSpline)
+        HBE.AppendHybridShape LineA
+        Part.Update
+        Set LineARef = Part.CreateReferenceFromObject(LineA)
+        LineA.Name = "LineA"
+    End If
+    
+
+
+
+
+
+ 
+Dim PlaneA As HybridShapePlaneNormal
+Set PlaneA = HSF.AddNewPlaneNormal(LineARef, EPRef)
+HBE.AppendHybridShape PlaneA
+Part.Update
+Set PlaneARef = Part.CreateReferenceFromObject(PlaneA)
+PlaneA.Name = "PlaneA"
+
+Dim MySpline As HybridShapeAssemble
+Set MySpline = HSF.AddNewJoin(Split2ref, LineARef)
+HBE.AppendHybridShape MySpline
+Part.Update
+Set MySplineRef = Part.CreateReferenceFromObject(MySpline)
+MySpline.Name = "MySpline"
+
+Dim PointB
+Set PointB = HSF.AddNewPointCoord(0, 0, 0)
+PointB.PtRef = BPRef
+HBE.AppendHybridShape PointB
+Part.Update
+Dim PointBRef As Reference
+Set PointBRef = Part.CreateReferenceFromObject(PointB)
+PointB.Name = "PointB"
+
+Dim PointE
+Set PointE = HSF.AddNewPointOnCurveWithReferenceFromDistance(MySplineRef, PointBRef, LB, NotDirSpline)
+PointE.DistanceType = -1
+HBE.AppendHybridShape PointE
+Part.Update
+Dim PointERef As Reference
+Set PointERef = Part.CreateReferenceFromObject(PointE)
+PointE.Name = "PointE"
+
+Dim PointEL
+Set PointEL = HSF.AddNewPointOnCurveWithReferenceFromDistance(MySplineRef, PointBRef, LB, NotDirSpline)
+PointEL.DistanceType = 1
+HBE.AppendHybridShape PointEL
+Part.Update
+Dim PointELRef As Reference
+Set PointELRef = Part.CreateReferenceFromObject(PointEL)
+PointEL.Name = "PointEL"
+
+Dim PointEN
+Set PointEN = HSF.AddNewNear(PointERef, PointELRef)
+HBE.AppendHybridShape PointEN
+Part.Update
+Dim PointENRef  As Reference
+Set PointENRef = Part.CreateReferenceFromObject(PointEN)
+PointEN.Name = "PointEN"
+
+Dim LineB As HybridShapeLinePtPt
+Set LineB = HSF.AddNewLinePtPt(PointBRef, PointENRef)
+HBE.AppendHybridShape LineB
+Part.Update
+Dim LineBRef As Reference
+Set LineBRef = Part.CreateReferenceFromObject(LineB)
+LineB.Name = "LineB"
+
+Dim PlaneB As HybridShapePlaneOffset
+Set PlaneB = HBB.HybridShapes.Item("BegPlane")
+Dim PlaneBRef As Reference
+Set PlaneBRef = Part.CreateReferenceFromObject(PlaneB)
+
+Dim MyPlaneB As HybridShapePlaneAngle
+Set MyPlaneB = HSF.AddNewPlaneAngle(PlaneBRef, LineBRef, 90#, False)
+MyPlaneB.ProjectionMode = True
+HBE.AppendHybridShape MyPlaneB
+Part.Update
+Dim MyPlaneBRef As Reference
+Set MyPlaneBRef = Part.CreateReferenceFromObject(MyPlaneB)
+MyPlaneB.Name = "MyPlaneB"
+
+Call MainSelection.Add(LineA)
+Call MainSelection.Add(PlaneA)
+Call MainSelection.Add(MySpline)
+Call MainSelection.Add(PointB)
+Call MainSelection.Add(PointE)
+Call MainSelection.Add(LineB)
+Call MainSelection.Add(PlaneB)
+Call MainSelection.Add(MyPlaneB)
+Call MainSelection.VisProperties.SetShow(1)
+MainSelection.Clear
+
+Dim PointERealRef As Reference
+Dim PlaneERealRef As Reference
+Call SCH(0, PointBRef, PointENRef, LineBRef, MyPlaneBRef, PointERealRef)
+
+
+'______________________________________________________
+'vvn = ND(1, PointBRef, PointERealRef, LineBRef, MyPlaneBRef, PointBRef, PointERef, LineBRef, MyPlaneBRef)
+'Call SCH(1, PointBRef, PointERef, LineBRef, MyPlaneBRef, PointERealRef)
+
+'Exit Sub
+'________________________________________________________
+
+Dim En As String
+En = Parameters.Item("Chain_ends").ValueAsString
+I = 1
+While Not (ND(I, PointBRef, PointERealRef, LineBRef, MyPlaneBRef, PointBRef, PointENRef, LineBRef, MyPlaneBRef))
+Call SCH(I, PointBRef, PointENRef, LineBRef, MyPlaneBRef, PointERealRef)
+I = I + 1
+Wend
+If En = "More_curve" Then
+Call SCH(I, PointBRef, PointENRef, LineBRef, MyPlaneBRef, PointERealRef)
+Parameters.Item("Segment_count").Value = I + 1
+ElseIf En = "Trim" Then
+Call SCH(I, PointBRef, PointENRef, LineBRef, MyPlaneBRef, PointERealRef)
+Dim SecRef As Reference
+Set SecRef = Part.CreateReferenceFromObject(Part.FindObjectByName("Section_" + CStr(I)))
+Dim MySplit As HybridShapeSplit
+If DirSpline Then Set MySplit = HSF.AddNewHybridSplit(SecRef, PlaneARef, -1) Else Set MySplit = HSF.AddNewHybridSplit(SecRef, PlaneARef, 1)
+HSF.GSMVisibility SecRef, 0
+MySplit.VolumeResult = 1
+HBE.AppendHybridShape MySplit
+Part.Update
+MySplit.Name = "SectionLast"
+Parameters.Item("Segment_count").Value = I + 1
+Else
+Parameters.Item("Segment_count").Value = I
+End If
+If VT = 1 Then
+On Error Resume Next
+Err.Clear
+Parameters.Item(PrtN + "\Отношения\Update\Активность").Value = True
+Parameters.Item(PrtN + "\Relations\Update\Activity").Value = True
+Parameters.Item(PrtN + "\Отношения\ChangeData\Активность").Value = True
+Parameters.Item(PrtN + "\Relations\ChangeData\Activity").Value = True
+'If Err.Number <> 0 Then MsgBox "fuck"
+Err.Clear
+End If
+MainSelection.Clear
+MainSelection.Search "CATGmoSearch.VolumeGeo.Name=Section*,all"
+MainSelection.VisProperties.SetRealColor 250, 250, 250, 0
+MainSelection.Clear
+Part.Update
+End Sub
+
+Public Function PfurtherL(PointRef As Reference, LineRef As Reference) As Boolean
+Err.Clear
+Dim ProjectErr As HybridShapeProject
+Set ProjectErr = HSF.AddNewProject(PointRef, LineRef)
+ProjectErr.SolutionType = 0
+ProjectErr.Normal = True
+ProjectErr.SmoothingType = 0
+HBE.AppendHybridShape ProjectErr
+Part.Update
+If Err.Number <> 0 Then PfurtherL = True Else PfurtherL = False
+MainSelection.Clear
+MainSelection.Add ProjectErr
+MainSelection.Delete
+Err.Clear
+Part.Update
+End Function
+
+Public Function PinL(PointRef As Reference, LineRef As Reference) As Boolean
+    Set MyMeas = Spabench.GetMeasurable(LineRef)
+    If MyMeas.GetMinimumDistance(PointRef) > 0.00001 Then PinL = False Else PinL = True
+End Function
+
+Public Function DisBetweenP(Point1Ref As Reference, Point2Ref As Reference) As Double
+    Set MyMeas = Spabench.GetMeasurable(Point1Ref)
+    DisBetweenP = MyMeas.GetMinimumDistance(Point2Ref)
+End Function
+
+Public Function DisBetweenPL(PointRef As Reference, LineRef As Reference) As Double
+    Set MyMeas = Spabench.GetMeasurable(LineRef)
+    DisBetweenPL = MyMeas.GetMinimumDistance(PointRef)
+End Function
+
+Public Function LenL(LineRef As Reference) As Double
+    Set MyMeas = Spabench.GetMeasurable(LineRef)
+    LenL = MyMeas.Length
+End Function
+
+Public Function PinBeg(PointRef As Reference) As Boolean
+    Dim BRef As Reference
+    Set BRef = Part.CreateReferenceFromObject(Part.FindObjectByName("MoldBSpline"))
+    Set MyMeas = Spabench.GetMeasurable(BRef)
+    If MyMeas.GetMinimumDistance(PointRef) > 0.00001 Then PinBeg = False Else PinBeg = True
+End Function
+
+Public Function PinEnd(PointRef As Reference) As Boolean
+    Dim ERef As Reference
+    Set ERef = Part.CreateReferenceFromObject(Part.FindObjectByName("MoldESpline"))
+    Set MyMeas = Spabench.GetMeasurable(ERef)
+    If MyMeas.GetMinimumDistance(PointRef) > 0.00001 Then PinEnd = False Else PinEnd = True
+End Function
+
+Public Function LfurtherL(LineSmallRef As Reference, LineBigRef As Reference) As Boolean
+On Error Resume Next
+Err.Clear
+Dim Point As HybridShapePointOnCurve
+Set Point = HSF.AddNewPointOnCurveFromPercent(LineSmallRef, 1#, False)
+HBE.AppendHybridShape Point
+Part.Update
+Dim PointRef As Reference
+Set PointRef = Part.CreateReferenceFromObject(Point)
+Dim ProjectErr As HybridShapeProject
+Set ProjectErr = HSF.AddNewProject(PointRef, LineBigRef)
+ProjectErr.SolutionType = 0
+ProjectErr.Normal = True
+ProjectErr.SmoothingType = 0
+HBE.AppendHybridShape ProjectErr
+Part.Update
+If Err.Number <> 0 Then LfurtherL = True Else LfurtherL = False
+MainSelection.Clear
+Call MainSelection.Add(Point)
+Call MainSelection.Add(ProjectErr)
+MainSelection.Delete
+Err.Clear
+Part.Update
+End Function
+
+Public Sub DelRef(Ref As Reference)
+MainSelection.Clear
+Call MainSelection.Add(Part.FindObjectByName(Ref.DisplayName))
+MainSelection.Delete
+End Sub
+
+Public Function GoodData(Name As String) As Boolean
+Dim Shape
+Set Shape = Part.FindObjectByName(Name)
+If TypeName(Shape) = "Nothing" Then
+    GoodData = True
+    Exit Function
+End If
+GoodData = Part.IsInactive(Shape)
+If GoodData = False Then
+Part.Inactivate Shape
+GoodData = Part.IsInactive(Shape)
+If GoodData Then
+Part.Activate Shape
+Part.Update
+End If
+End If
+End Function
+
+Public Function NT(Data As Boolean) As Boolean
+If Data Then NT = False Else NT = True
+End Function
+======
+AddS
+======
+
+Public Function ND(Num As Integer, PointBRef As Reference, PointERef As Reference, LineBegRef As Reference, PlaneBegRef As Reference, ByRef PointBRRef As Reference, ByRef PointERRef As Reference, ByRef LineEndRef As Reference, ByRef PlaneEndRef As Reference) As Boolean
+Dim DN As String
+DN = "_" + CStr(Num)
+
+Dim PointG
+Set PointG = HSF.AddNewPointOnCurveWithReferenceFromDistance(MySplineRef, PointERef, L45, NotDirSpline)
+PointG.DistanceType = -1
+HBE.AppendHybridShape PointG
+Part.Update
+Dim PointGRef As Reference
+Set PointGRef = Part.CreateReferenceFromObject(PointG)
+PointG.Name = "PointG"
+
+Dim PointGL
+Set PointGL = HSF.AddNewPointOnCurveWithReferenceFromDistance(MySplineRef, PointERef, L45, NotDirSpline)
+PointGL.DistanceType = 1
+HBE.AppendHybridShape PointGL
+Part.Update
+Dim PointGLRef As Reference
+Set PointGLRef = Part.CreateReferenceFromObject(PointGL)
+PointGL.Name = "PointGL"
+
+Dim PointGN
+Set PointGN = HSF.AddNewNear(PointGRef, PointGLRef)
+HBE.AppendHybridShape PointGN
+Part.Update
+Dim PointGNRef  As Reference
+Set PointGNRef = Part.CreateReferenceFromObject(PointGN)
+PointGN.Name = "PointGN"
+
+Dim PointGP
+Set PointGP = HSF.AddNewProject(PointGNRef, PlaneBegRef)
+PointGP.SolutionType = 0
+PointGP.Normal = True
+PointGP.SmoothingType = 0
+HBE.AppendHybridShape PointGP
+Part.Update
+Dim PointGPRef  As Reference
+Set PointGPRef = Part.CreateReferenceFromObject(PointGP)
+PointGP.Name = "PointGP"
+
+Dim LineE As HybridShapeLinePtPt
+Set LineE = HSF.AddNewLinePtPtExtended(PointERef, PointGNRef, 0, 0)
+HBE.AppendHybridShape LineE
+Part.Update
+Dim LineERef As Reference
+Set LineERef = Part.CreateReferenceFromObject(LineE)
+LineE.Name = "LineE"
+
+Dim LineEP As HybridShapeLinePtPt
+Set LineEP = HSF.AddNewLinePtPt(PointERef, PointGPRef)
+HBE.AppendHybridShape LineEP
+Part.Update
+Dim LineEPRef As Reference
+Set LineEPRef = Part.CreateReferenceFromObject(LineEP)
+LineEP.Name = "LineEP"
+
+Dim LineT As HybridShapeLineTangency
+Set LineT = HSF.AddNewLineTangency(LineEPRef, PointGPRef, -LB, LB, False)
+HBE.AppendHybridShape LineT
+Part.Update
+Dim LineTRef As Reference
+Set LineTRef = Part.CreateReferenceFromObject(LineT)
+LineT.Name = "LineT"
+
+
+Dim ProjectErr As HybridShapeProject
+On Error Resume Next
+Dim MyL As Double
+For I = 1 To 4
+Select Case I
+    Case 1
+    PointG.Offset.Value = L45
+    PointGL.Offset.Value = L45
+    Case 2
+        PointG.Offset.Value = L90
+        PointGL.Offset.Value = L90
+    Case 3
+        PointG.Offset.Value = L135
+        PointGL.Offset.Value = L135
+    Case 4
+        PointG.Offset.Value = L180
+        PointGL.Offset.Value = L180
+End Select
+Part.Update
+'MsgBox PointG.Offset.Value
+Set ProjectErr = HSF.AddNewProject(PointGPRef, LineBegRef)
+ProjectErr.SolutionType = 0
+ProjectErr.Normal = True
+ProjectErr.SmoothingType = 0
+HBE.AppendHybridShape ProjectErr
+Part.Update
+If Err.Number <> 0 Then Betta = 0 Else Betta = -180
+
+MainSelection.Clear
+MainSelection.Add ProjectErr
+MainSelection.Delete
+Err.Clear
+Part.Update
+
+Dim An As Double
+Set MyMeas = Spabench.GetMeasurable(LineEPRef)
+An = MyMeas.GetAngleBetween(LineBegRef)
+If An > 90 Then An = 180 - An
+Betta = Abs(Betta + An)
+'MsgBox Betta
+Select Case I
+    Case 1
+        If Betta <= 45 Then Exit For
+    Case 2
+        If Betta <= 90 Then Exit For
+    Case 3
+        If Betta <= 135 Then Exit For
+End Select
+Next
+
+Set MyMeas = Spabench.GetMeasurable(LineERef)
+Alfa = MyMeas.GetAngleBetween(LineEPRef)
+If Alfa > 90 Then Alfa = 180 - Alfa
+Set MyMeas = Spabench.GetMeasurable(LineEPRef)
+MaxL = MyMeas.Length
+'MsgBox "nnnn"
+'MsgBox CStr(Alfa) + "  " + CStr(Betta) + "  " + CStr(Big)
+'MsgBox "mmm"
+Dim MyLen As Double
+If Betta < 90 Then
+MyLen = Get_Y
+ElseIf Betta > 90 Then
+MyLen = Get_Y2
+Else
+MyLen = Sqr(cr * cr + Cos(Alfa * CoefPI) * Cos(Alfa * CoefPI) * (cr * cr + Big * Big))
+End If
+Dim PointC
+Set PointC = HSF.AddNewPointOnCurveWithReferenceFromDistance(LineBegRef, PointERef, -cr, False)
+PointC.DistanceType = -1
+HBE.AppendHybridShape PointC
+Part.Update
+Dim PointCRef As Reference
+Set PointCRef = Part.CreateReferenceFromObject(PointC)
+PointC.Name = "PointC"
+
+Dim PointLP
+Set PointLP = HSF.AddNewPointOnCurveWithReferenceFromDistance(LineTRef, PointCRef, cr + MyLen, False)
+PointLP.DistanceType = -1
+HBE.AppendHybridShape PointLP
+Part.Update
+Dim PointLPRef As Reference
+Set PointLPRef = Part.CreateReferenceFromObject(PointLP)
+PointLP.Name = "PointLP"
+
+Dim LineLP As HybridShapeLinePtPt
+Set LineLP = HSF.AddNewLinePtPt(PointCRef, PointLPRef)
+HBE.AppendHybridShape LineLP
+Part.Update
+Dim LineLPRef As Reference
+Set LineLPRef = Part.CreateReferenceFromObject(LineLP)
+LineLP.Name = "LineLP"
+
+Dim PointT
+Set PointT = HSF.AddNewPointOnCurveWithReferenceFromDistance(LineLPRef, PointCRef, cr, False)
+PointT.DistanceType = -1
+HBE.AppendHybridShape PointT
+Part.Update
+Dim PointTRef As Reference
+Set PointTRef = Part.CreateReferenceFromObject(PointT)
+PointT.Name = "PointT"
+
+Dim PointL
+Set PointL = HSF.AddNewPointOnCurveWithReferenceFromDistance(LineERef, PointTRef, Big, False)
+PointL.DistanceType = -1
+HBE.AppendHybridShape PointL
+Part.Update
+Dim PointLRef As Reference
+Set PointLRef = Part.CreateReferenceFromObject(PointL)
+PointL.Name = "PointL"
+
+Dim LineL As HybridShapeLinePtPt
+Set LineL = HSF.AddNewLinePtPtExtended(PointTRef, PointLRef, Small, 0#)
+HBE.AppendHybridShape LineL
+Part.Update
+Dim LineLRef As Reference
+Set LineLRef = Part.CreateReferenceFromObject(LineL)
+LineL.Name = "LineL"
+
+Dim PointF
+Set PointF = HSF.AddNewPointOnCurveWithReferenceFromDistance(LineLRef, PointLRef, Big + Small, True)
+PointF.DistanceType = -1
+HBE.AppendHybridShape PointF
+Part.Update
+Dim PointFRef As Reference
+Set PointFRef = Part.CreateReferenceFromObject(PointF)
+PointF.Name = "PointF"
+
+Call CreatePointfromPoint(PointFRef, "P1" + DN, PointBRRef)
+Call CreatePointfromPoint(PointLRef, "P2" + DN, PointERRef)
+
+Err.Clear
+Set ProjectErr = HSF.AddNewProject(PointLRef, LineARef)
+ProjectErr.SolutionType = 0
+ProjectErr.Normal = True
+ProjectErr.SmoothingType = 0
+HBE.AppendHybridShape ProjectErr
+Part.Update
+If Err.Number = 0 Then
+If DisBetweenPL(PointGNRef, LineARef) < 0.1 Then ND = True Else ND = False
+Else
+ND = False
+End If
+MainSelection.Clear
+MainSelection.Add ProjectErr
+MainSelection.Delete
+Err.Clear
+Part.Update
+
+Dim LineEn As HybridShapeLinePtPt
+Set LineEn = HSF.AddNewLinePtPt(PointBRRef, PointERRef)
+HBE.AppendHybridShape LineEn
+Part.Update
+Set LineEndRef = Part.CreateReferenceFromObject(LineEn)
+LineEn.Name = "L" + DN
+
+Dim PlaneE As HybridShapePlaneAngle
+Set PlaneE = HSF.AddNewPlaneAngle(PlaneBegRef, LineEn, 90#, False)
+PlaneE.ProjectionMode = True
+HBE.AppendHybridShape PlaneE
+Part.Update
+Set PlaneEndRef = Part.CreateReferenceFromObject(PlaneE)
+PlaneE.Name = "Pl" + DN
+
+MainSelection.Clear
+Call MainSelection.Add(PointF)
+Call MainSelection.Add(LineL)
+Call MainSelection.Add(PointL)
+Call MainSelection.Add(PointT)
+Call MainSelection.Add(LineLP)
+Call MainSelection.Add(PointLP)
+Call MainSelection.Add(PointC)
+Call MainSelection.Add(LineT)
+Call MainSelection.Add(LineEP)
+Call MainSelection.Add(LineE)
+Call MainSelection.Add(PointGP)
+Call MainSelection.Add(PointGN)
+Call MainSelection.Add(PointGL)
+Call MainSelection.Add(PointG)
+MainSelection.Delete
+
+Call MainSelection.Add(LineEn)
+Call MainSelection.Add(PlaneE)
+Call MainSelection.VisProperties.SetShow(1)
+MainSelection.Clear
+End Function
+
+======
+Func
+======
+Public Function sign(Data As Double) As Integer
+If Data > 0 Then
+sign = 1
+ElseIf Data = 0 Then
+sign = 0
+Else
+sign = -1
+End If
+End Function
+
+Public Sub GetCoordfromPoint(Ref As Reference, ByRef X As Double, ByRef Y As Double, ByRef Z As Double)
+Selection.Clear
+Call Selection.Add(Part.FindObjectByName(Ref.DisplayName))
+
+Dim dC(2) As Variant
+Selection.Search "CATPrtSearch.Point,sel"
+Selection.Item(1).Value.GetCoordinates dC
+
+X = dC(0)
+Y = dC(1)
+Z = dC(2)
+Selection.Clear
+End Sub
+
+Public Sub GetCoordfromAll(Ref As Reference, ByRef X As Double, ByRef Y As Double, ByRef Z As Double)
+Dim Pt
+Set Pt = HSF.AddNewPointCoord(0, 0, 0)
+Pt.PtRef = Ref
+HBE.AppendHybridShape Pt
+Part.Update
+Selection.Clear
+Call Selection.Add(Pt)
+Dim dC(2) As Variant
+Selection.Search "CATPrtSearch.Point,sel"
+'MsgBox Selection.Count
+Selection.Item(1).Value.GetCoordinates dC
+X = dC(0)
+Y = dC(1)
+Z = dC(2)
+Selection.Delete
+Part.Update
+End Sub
+
+
+Public Sub CreatePointfromPoint(Ref As Reference, Name As String, ByRef PointResRef As Reference)
+Dim X As Double
+Dim Y As Double
+Dim Z As Double
+Call GetCoordfromPoint(Ref, X, Y, Z)
+Dim Pt
+Set Pt = HSF.AddNewPointCoord(X, Y, Z)
+HBE.AppendHybridShape Pt
+Part.Update
+Pt.Name = Name
+Set PointResRef = Part.CreateReferenceFromObject(Pt)
+MainSelection.Clear
+Call MainSelection.Add(Pt)
+Call MainSelection.VisProperties.SetShow(1)
+MainSelection.Clear
+End Sub
+
+Public Sub CreatePointfromAll(Ref As Reference, Name As String, ByRef PointResRef As Reference)
+Dim Pt
+Set Pt = HSF.AddNewPointCoord(0, 0, 0)
+Pt.PtRef = Ref
+HBE.AppendHybridShape Pt
+Part.Update
+Dim PtRef As Reference
+Set PtRef = Part.CreateReferenceFromObject(Pt)
+Call CreatePointfromPoint(PtRef, Name, PointResRef)
+Selection.Clear
+Call Selection.Add(Pt)
+Call Selection.Delete
+Part.Update
+End Sub
+
+Public Function Quadratic(Coeff() As Double, ByRef X() As Double) As Integer
+ Dim dd As Double
+ dd = (Coeff(1) ^ 2) - 4 * Coeff(0) * Coeff(2)
+ If dd < 0 Then
+ Quadratic = 0
+ ElseIf dd = 0 Then
+ X(0) = -Coeff(1) / (2 * Coeff(0))
+ Quadratic = 1
+ Else
+ X(0) = (-Coeff(1) - Sqr(dd)) / (2 * Coeff(0))
+ X(1) = (-Coeff(1) + Sqr(dd)) / (2 * Coeff(0))
+ Quadratic = 2
+ End If
+End Function
+Public Function Cubic(Coeff() As Double, ByRef X() As Double) As Integer
+Dim a As Double
+a = Coeff(2) / Coeff(3)
+Dim b As Double
+b = Coeff(1) / Coeff(3)
+Dim c As Double
+c = Coeff(0) / Coeff(3)
+  Dim q As Double
+  q = (a * a - 3 * b) / 9
+  Dim R As Double
+  R = (2 * a * a * a - 9 * a * b + 27 * c) / 54
+  Dim Qcubed As Double
+  Qcubed = q * q * q
+  Dim d As Double
+   d = Qcubed - R * R
+If (d >= 0) Then
+Dim theta As Double
+Dim Y As Double
+Y = R / Sqr(Qcubed)
+theta = Atn(-Y / Sqr(-Y * Y + 1)) + 2 * Atn(1)
+Dim sqrtQ  As Double
+sqrtQ = Sqr(q)
+X(0) = -2 * sqrtQ * Cos(theta / 3) - a / 3
+X(1) = -2 * sqrtQ * Cos((theta + 2 * PI) / 3) - a / 3
+X(2) = -2 * sqrtQ * Cos((theta + 4 * PI) / 3) - a / 3
+Cubic = 3
+Else
+Dim e As Double
+e = (Sqr(-d) + Abs(R)) ^ (1 / 3)
+If (R > 0) Then e = -e
+X(0) = (e + q / e) - a / 3
+Cubic = 1
+End If
+End Function
+
+Public Function Quartic(Coeff() As Double, ByRef X() As Double) As Integer
+Dim a As Double
+Dim b As Double
+Dim c As Double
+Dim d As Double
+Dim I As Integer
+a = Coeff(3) / Coeff(4)
+b = Coeff(2) / Coeff(4)
+c = Coeff(1) / Coeff(4)
+d = Coeff(0) / Coeff(4)
+Dim q As Double
+q = b - a * a * 3 / 8
+Dim R As Double
+R = c - a * b / 2 + a * a * a / 8
+Dim s As Double
+s = d - a * c / 4 + a * a * b / 16 - 3 * a * a * a * a / 256
+Dim coeff_cubic(3) As Double
+Dim roots_cubic(2) As Double
+Dim positive_root As Double
+coeff_cubic(3) = 1
+coeff_cubic(2) = q / 2
+coeff_cubic(1) = (q * q - 4 * s) / 16
+coeff_cubic(0) = -R * R / 64
+Dim nRoots As Integer
+nRoots = Cubic(coeff_cubic, roots_cubic)
+For I = 0 To nRoots - 1
+If (roots_cubic(I) > 0) Then positive_root = roots_cubic(I)
+Next
+Dim k As Double
+Dim l As Double
+Dim m As Double
+k = Sqr(positive_root)
+l = 2 * k * k + q / 2 - R / (4 * k)
+m = 2 * k * k + q / 2 + R / (4 * k)
+nRoots = 0
+If (k * k - l > 0) Then
+X(nRoots + 0) = -k - Sqr(k * k - l) - a / 4
+X(nRoots + 1) = -k + Sqr(k * k - l) - a / 4
+nRoots = nRoots + 2
+End If
+If (k * k - m > 0) Then
+X(nRoots + 0) = k - Sqr(k * k - m) - a / 4
+X(nRoots + 1) = k + Sqr(k * k - m) - a / 4
+nRoots = nRoots + 2
+End If
+Quartic = nRoots
+End Function
+
+Public Sub Get_Coef(ByRef Coeff() As Double)
+Dim Cosa As Double
+Dim Cos2a As Double
+Dim Cos4a As Double
+Dim Tg2a As Double
+Dim Cosb As Double
+Dim Cos2b As Double
+Dim Big2 As Double
+Dim Big4 As Double
+Dim Cr2 As Double
+
+Cosa = Cos(Alfa * CoefPI)
+Cos2a = Cosa * Cosa
+Cos4a = Cos2a * Cos2a
+Tg2a = Tan(Alfa * CoefPI) * Tan(Alfa * CoefPI)
+Cosb = Cos(Betta * CoefPI)
+Cos2b = Cosb * Cosb
+Big2 = Big * Big
+Big4 = Big2 * Big2
+Cr2 = cr * cr
+Coeff(4) = 1 / (4 * Cr2 * Cos4a)
+Coeff(3) = Cosb / (cr * Cos2a)
+Coeff(2) = Cos2b + Tg2a - (Big2 / (2 * Cr2 * Cos2a))
+Coeff(1) = -1 * Big2 * Cosb / cr
+Coeff(0) = (0.25 * Big4 / Cr2) - Big2
+End Sub
+
+Public Sub Get_Coef2(ByRef Coeff() As Double)
+Dim Cosa As Double
+Dim Cos2a As Double
+Dim Cos4a As Double
+Dim Tg2a As Double
+Dim Cosb As Double
+Dim Cos2b As Double
+Dim Big2 As Double
+Dim Big4 As Double
+Dim Cr2 As Double
+
+Cosa = Cos(Alfa * CoefPI)
+Cos2a = Cosa * Cosa
+Cos4a = Cos2a * Cos2a
+Tg2a = Tan(Alfa * CoefPI) * Tan(Alfa * CoefPI)
+Cosb = Cos(PI - (Betta * CoefPI))
+Cos2b = Cosb * Cosb
+Big2 = Big * Big
+Big4 = Big2 * Big2
+Cr2 = cr * cr
+Coeff(4) = 1 / (4 * Cr2 * Cos4a)
+Coeff(3) = -1 * Cosb / (cr * Cos2a)
+Coeff(2) = Cos2b + Tg2a - (Big2 / (2 * Cr2 * Cos2a))
+Coeff(1) = Big2 * Cosb / cr
+Coeff(0) = (0.25 * Big4 / Cr2) - Big2
+End Sub
+
+
+Public Function Get_Y() As Double
+Get_Y = 0
+Dim I As Integer
+ReDim Coeff4(4)
+Call Get_Coef(Coeff4)
+ReDim MyX(3)
+Dim Num As Integer
+Dim Delta As Double
+Delta = Big
+Dim Data As Double
+Num = Quartic(Coeff4, MyX)
+On Error Resume Next
+For I = 0 To Num - 1
+Err.Clear
+If MyX(I) > 0 Then
+    Data = Sqr(Big * Big - Tan(Alfa * CoefPI) * Tan(Alfa * CoefPI) * MyX(I) * MyX(I))
+    If Err.Number = 0 Then
+        If Delta > (Big - Data) And (Data <= MaxL) Then
+            Delta = Big - Data
+            Get_Y = Data
+        End If
+    Else
+        Err.Clear
+    End If
+End If
+Next
+End Function
+
+Public Function Get_Y2() As Double
+Get_Y2 = 0
+Dim I As Integer
+ReDim Coeff4(4)
+Call Get_Coef2(Coeff4)
+ReDim MyX(3)
+Dim Num As Integer
+Dim Delta As Double
+Delta = Big
+Dim Data As Double
+Num = Quartic(Coeff4, MyX)
+On Error Resume Next
+For I = 0 To Num - 1
+Err.Clear
+If MyX(I) > 0 Then
+    Data = Sqr(Big * Big - Tan(Alfa * CoefPI) * Tan(Alfa * CoefPI) * MyX(I) * MyX(I))
+    If Err.Number = 0 Then
+        If Delta > (Big - Data) And (Data <= MaxL) Then
+            Delta = Big - Data
+            Get_Y2 = Data
+        End If
+    Else
+        Err.Clear
+    End If
+End If
+Next
+End Function
+
+======
+Sect
+======
+
+Public Sub SCH(Num As Integer, PointBRef As Reference, PointERef As Reference, LineBegRef As Reference, PlaneBegRef As Reference, ByRef EndP As Reference)
+Dim DN As String
+DN = "_" + CStr(Num)
+
+Dim Plane2 As HybridShapePlaneAngle
+Set Plane2 = HSF.AddNewPlaneAngle(PlaneBegRef, LineBegRef, 90, NotDirSpline)
+HBE.AppendHybridShape Plane2
+Part.Update
+Dim Plane2Ref As Reference
+Set Plane2Ref = Part.CreateReferenceFromObject(Plane2)
+Plane2.Name = "Pn2" + DN
+
+Dim Point1
+Set Point1 = HSF.AddNewPointOnCurveWithReferenceFromDistance(LineBegRef, PointBRef, R, False)
+Point1.DistanceType = -1
+HBE.AppendHybridShape Point1
+Part.Update
+Dim Point1Ref As Reference
+Set Point1Ref = Part.CreateReferenceFromObject(Point1)
+Point1.Name = "Point1"
+
+Dim Point2
+Set Point2 = HSF.AddNewPointOnCurveWithReferenceFromDistance(LineBegRef, Point1Ref, cr, False)
+Point2.DistanceType = -1
+HBE.AppendHybridShape Point2
+Part.Update
+Dim Point2Ref As Reference
+Set Point2Ref = Part.CreateReferenceFromObject(Point2)
+Point2.Name = "Point2"
+
+Dim Point3
+Set Point3 = HSF.AddNewPointOnCurveWithReferenceFromDistance(LineBegRef, PointERef, R, True)
+Point3.DistanceType = -1
+HBE.AppendHybridShape Point3
+Part.Update
+Dim Point3Ref As Reference
+Set Point3Ref = Part.CreateReferenceFromObject(Point3)
+Point3.Name = "Point3"
+
+Dim Point4
+Set Point4 = HSF.AddNewPointOnCurveWithReferenceFromDistance(LineBegRef, Point3Ref, cr, True)
+Point4.DistanceType = -1
+HBE.AppendHybridShape Point4
+Part.Update
+Dim Point4Ref As Reference
+Set Point4Ref = Part.CreateReferenceFromObject(Point4)
+Point4.Name = "Point4"
+
+Dim Line2  As HybridShapeLineAngle
+Set Line2 = HSF.AddNewLineAngle(LineBegRef, PlaneBegRef, Point2Ref, False, 0#, cr, 90, False)
+HBE.AppendHybridShape Line2
+Part.Update
+Dim Line2Ref As Reference
+Set Line2Ref = Part.CreateReferenceFromObject(Line2)
+Line2.Name = "Line2"
+
+Dim Line3 As HybridShapeLineAngle
+Set Line3 = HSF.AddNewLineAngle(LineBegRef, PlaneBegRef, Point2Ref, False, 0#, cr, 90, True)
+HBE.AppendHybridShape Line3
+Part.Update
+Dim Line3Ref As Reference
+Set Line3Ref = Part.CreateReferenceFromObject(Line3)
+Line3.Name = "Line3"
+
+Dim Line4 As HybridShapeLineAngle
+Set Line4 = HSF.AddNewLineAngle(LineBegRef, PlaneBegRef, Point4Ref, False, 0#, cr, 90, False)
+HBE.AppendHybridShape Line4
+Part.Update
+Dim Line4Ref As Reference
+Set Line4Ref = Part.CreateReferenceFromObject(Line4)
+Line4.Name = "Line4"
+
+Dim Line5   As HybridShapeLineAngle
+Set Line5 = HSF.AddNewLineAngle(LineBegRef, PlaneBegRef, Point4Ref, False, 0#, cr, 90, True)
+HBE.AppendHybridShape Line5
+Part.Update
+Dim Line5Ref As Reference
+Set Line5Ref = Part.CreateReferenceFromObject(Line5)
+Line5.Name = "Line5"
+
+Dim Point5
+Set Point5 = HSF.AddNewPointOnCurveWithReferenceFromDistance(Line2Ref, Point2Ref, cr, False)
+Point5.DistanceType = -1
+HBE.AppendHybridShape Point5
+Part.Update
+Dim Point5Ref As Reference
+Set Point5Ref = Part.CreateReferenceFromObject(Point5)
+Point5.Name = "Point5"
+
+Dim Point6
+Set Point6 = HSF.AddNewPointOnCurveWithReferenceFromDistance(Line3Ref, Point2Ref, cr, True)
+Point6.DistanceType = -1
+HBE.AppendHybridShape Point6
+Part.Update
+Dim Point6Ref As Reference
+Set Point6Ref = Part.CreateReferenceFromObject(Point6)
+Point6.Name = "Point6"
+
+Dim Point7
+Set Point7 = HSF.AddNewPointOnCurveWithReferenceFromDistance(Line4Ref, Point4Ref, cr, False)
+Point7.DistanceType = -1
+HBE.AppendHybridShape Point7
+Part.Update
+Dim Point7Ref As Reference
+Set Point7Ref = Part.CreateReferenceFromObject(Point7)
+Point7.Name = "Point7"
+
+Dim Point8
+Set Point8 = HSF.AddNewPointOnCurveWithReferenceFromDistance(Line5Ref, Point4Ref, cr, True)
+Point8.DistanceType = -1
+HBE.AppendHybridShape Point8
+Part.Update
+Dim Point8Ref As Reference
+Set Point8Ref = Part.CreateReferenceFromObject(Point8)
+Point8.Name = "Point8"
+
+
+Dim Pt1Ref As Reference
+Dim Pt2Ref As Reference
+Dim Pt3Ref As Reference
+Dim Pt4Ref As Reference
+Dim Pt5Ref As Reference
+Dim Pt6Ref As Reference
+
+Call CreatePointfromPoint(Point5Ref, "Pt1" + DN, Pt1Ref)
+Call CreatePointfromPoint(Point6Ref, "Pt2" + DN, Pt2Ref)
+Call CreatePointfromPoint(Point7Ref, "Pt3" + DN, Pt3Ref)
+Call CreatePointfromPoint(Point8Ref, "Pt4" + DN, Pt4Ref)
+Call CreatePointfromPoint(Point1Ref, "Pt5" + DN, Pt5Ref)
+Call CreatePointfromPoint(Point3Ref, "Pt6" + DN, Pt6Ref)
+MainSelection.Clear
+Call MainSelection.Add(Line5)
+Call MainSelection.Add(Line4)
+Call MainSelection.Add(Line3)
+Call MainSelection.Add(Line2)
+Call MainSelection.Add(Point1)
+Call MainSelection.Add(Point2)
+Call MainSelection.Add(Point3)
+Call MainSelection.Add(Point4)
+Call MainSelection.Add(Point5)
+Call MainSelection.Add(Point6)
+Call MainSelection.Add(Point7)
+Call MainSelection.Add(Point8)
+Call MainSelection.Delete
+
+Dim Circle1 As HybridShapeCircleCtrRad
+Set Circle1 = HSF.AddNewCircleCtrRad(Pt5Ref, Plane2Ref, False, R)
+Circle1.SetLimitation 1
+HBE.AppendHybridShape Circle1
+Part.Update
+Dim Circle1Ref As Reference
+Set Circle1Ref = Part.CreateReferenceFromObject(Circle1)
+Circle1.Name = "Circle1" + DN
+
+Dim Circle2 As HybridShapeCircle3Points
+Set Circle2 = HSF.AddNewCircle3Points(Pt1Ref, Pt5Ref, Pt2Ref)
+Circle2.SetLimitation 2
+HBE.AppendHybridShape Circle2
+Part.Update
+Dim Circle2Ref As Reference
+Set Circle2Ref = Part.CreateReferenceFromObject(Circle2)
+Circle2.Name = "Circle2" + DN
+
+Dim Circle3 As HybridShapeCircle3Points
+Set Circle3 = HSF.AddNewCircle3Points(Pt3Ref, Pt6Ref, Pt4Ref)
+Circle3.SetLimitation 2
+HBE.AppendHybridShape Circle3
+Part.Update
+Dim Circle3Ref As Reference
+Set Circle3Ref = Part.CreateReferenceFromObject(Circle3)
+Circle3.Name = "Circle3" + DN
+
+Dim Ln1 As HybridShapeLinePtPt
+Set Ln1 = HSF.AddNewLinePtPt(Pt1Ref, Pt3Ref)
+HBE.AppendHybridShape Ln1
+Part.Update
+Dim Ln1Ref As Reference
+Set Ln1Ref = Part.CreateReferenceFromObject(Ln1)
+Ln1.Name = "Ln1" + DN
+
+Dim Ln2 As HybridShapeLinePtPt
+Set Ln2 = HSF.AddNewLinePtPt(Pt2Ref, Pt4Ref)
+HBE.AppendHybridShape Ln2
+Part.Update
+Dim Ln2Ref As Reference
+Set Ln2Ref = Part.CreateReferenceFromObject(Ln2)
+Ln2.Name = "Ln2" + DN
+
+Dim Assemble As HybridShapeAssemble
+Set Assemble = HSF.AddNewJoin(Circle2Ref, Ln1Ref)
+Assemble.AddElement Circle3Ref
+Assemble.AddElement Ln2Ref
+HBE.AppendHybridShape Assemble
+Part.Update
+Dim AssembleRef As Reference
+Set AssembleRef = Part.CreateReferenceFromObject(Assemble)
+Assemble.Name = "Sidebar" + DN
+
+
+Call MainSelection.Add(Plane2)
+Call MainSelection.Add(Circle1)
+Call MainSelection.Add(Circle2)
+Call MainSelection.Add(Circle3)
+Call MainSelection.Add(Ln1)
+Call MainSelection.Add(Ln2)
+Call MainSelection.Add(Assemble)
+Call MainSelection.VisProperties.SetShow(1)
+MainSelection.Clear
+
+
+
+Dim Section As HybridShapeSweepExplicit
+Set Section = HSF.AddNewSweepExplicit(Circle1Ref, AssembleRef)
+Section.SubType = 1
+'Section.SetAngleRef 1, 0#
+Section.SolutionNo = 0
+Section.SmoothActivity = False
+Section.GuideDeviationActivity = False
+Section.Context = 1
+HBE.AppendHybridShape Section
+Part.Update
+Dim SectionRef As Reference
+Set SectionRef = Part.CreateReferenceFromObject(Section)
+Section.Name = "Section" + DN
+Set EndP = Pt6Ref
+End Sub
+
+
+
+
+
+
